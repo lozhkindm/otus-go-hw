@@ -44,17 +44,15 @@ func Unpack(str string) (string, error) {
 				continue
 			}
 
-			if unicode.IsLetter(char) || unicode.IsControl(char) {
-				r := &complexRune{rune: char, repeatable: true, repeats: 1}
-				lastRune = r
-				runes = append(runes, r)
-				continue
-			}
-
 			if unicode.IsDigit(char) {
 				repeats := int(char - '0')
 				lastRune.repeats = repeats
 				lastRune = &complexRune{rune: char}
+				continue
+			} else {
+				r := &complexRune{rune: char, repeatable: true, repeats: 1}
+				lastRune = r
+				runes = append(runes, r)
 				continue
 			}
 		}
