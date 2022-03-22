@@ -7,7 +7,7 @@ import (
 )
 
 // Change to true if needed.
-var taskWithAsteriskIsCompleted = false
+var taskWithAsteriskIsCompleted = true
 
 var text = `Как видите, он  спускается  по  лестнице  вслед  за  своим
 	другом   Кристофером   Робином,   головой   вниз,  пересчитывая
@@ -79,4 +79,50 @@ func TestTop10(t *testing.T) {
 			require.Equal(t, expected, Top10(text))
 		}
 	})
+}
+
+func TestClearWord(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{input: `9-тикратный`, expected: `9-тикратный`},
+		{input: `Винни-Пух.`, expected: `винни-пух`},
+		{input: `Пу-ух!"-`, expected: `пу-ух`},
+		{input: `бум-бум-бум.`, expected: `бум-бум-бум`},
+		{input: `вниз,`, expected: `вниз`},
+		{input: `"Пу-ух!`, expected: `пу-ух`},
+		{input: `сосредоточиться-то`, expected: `сосредоточиться-то`},
+		{input: `-серый`, expected: `серый`},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.input, func(t *testing.T) {
+			result := clearWord(tc.input)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestClearText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "tab", input: `своим		другом`, expected: `своим другом`},
+		{name: "new line", input: `своим
+	другом`, expected: `своим другом`},
+		{name: "many spaces", input: `Кристофером   Робином`, expected: `Кристофером Робином`},
+		{name: "dash", input: `Но увы - сосредоточиться-то`, expected: `Но увы сосредоточиться-то`},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			result := clearText(tc.input)
+			require.Equal(t, tc.expected, result)
+		})
+	}
 }
