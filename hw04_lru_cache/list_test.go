@@ -15,6 +15,72 @@ func TestList(t *testing.T) {
 		require.Nil(t, l.Back())
 	})
 
+	t.Run("push front to empty list", func(t *testing.T) {
+		l := NewList()
+		l.PushFront(10)
+
+		require.Equal(t, 1, l.Len())
+
+		require.NotNil(t, l.Front())
+		require.NotNil(t, l.Back())
+
+		require.Equal(t, 10, l.Front().Value)
+		require.Equal(t, 10, l.Back().Value)
+
+		require.Nil(t, l.Front().Prev)
+		require.Nil(t, l.Front().Next)
+
+		require.Nil(t, l.Back().Prev)
+		require.Nil(t, l.Back().Next)
+	})
+
+	t.Run("push back to empty list", func(t *testing.T) {
+		l := NewList()
+		l.PushBack(10)
+
+		require.Equal(t, 1, l.Len())
+
+		require.NotNil(t, l.Front())
+		require.NotNil(t, l.Back())
+
+		require.Equal(t, 10, l.Front().Value)
+		require.Equal(t, 10, l.Back().Value)
+
+		require.Nil(t, l.Front().Prev)
+		require.Nil(t, l.Front().Next)
+
+		require.Nil(t, l.Back().Prev)
+		require.Nil(t, l.Back().Next)
+	})
+
+	t.Run("remove from list with a single item", func(t *testing.T) {
+		l := NewList()
+
+		item := l.PushBack(10)
+		l.Remove(item)
+
+		require.Nil(t, l.Front())
+		require.Nil(t, l.Back())
+
+		require.Equal(t, 0, l.Len())
+	})
+
+	t.Run("remove from list with two items", func(t *testing.T) {
+		l := NewList()
+
+		item := l.PushBack(10)
+		l.PushBack(20)
+		l.Remove(item)
+
+		require.NotNil(t, l.Front())
+		require.NotNil(t, l.Back())
+
+		require.Equal(t, 20, l.Front().Value)
+		require.Equal(t, 20, l.Back().Value)
+
+		require.Equal(t, 1, l.Len())
+	})
+
 	t.Run("complex", func(t *testing.T) {
 		l := NewList()
 
