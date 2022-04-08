@@ -49,14 +49,92 @@ func TestCache(t *testing.T) {
 		require.Nil(t, val)
 	})
 
+	t.Run("clear", func(t *testing.T) {
+		c := NewCache(5)
+
+		c.Set("aaa", 100)
+		c.Set("bbb", 200)
+
+		val, ok := c.Get("aaa")
+		require.True(t, ok)
+		require.Equal(t, 100, val)
+
+		val, ok = c.Get("bbb")
+		require.True(t, ok)
+		require.Equal(t, 200, val)
+
+		c.Clear()
+
+		val, ok = c.Get("aaa")
+		require.False(t, ok)
+		require.Nil(t, val)
+
+		val, ok = c.Get("bbb")
+		require.False(t, ok)
+		require.Nil(t, val)
+
+		c.Set("aaa", 500)
+		c.Set("bbb", 600)
+
+		val, ok = c.Get("aaa")
+		require.True(t, ok)
+		require.Equal(t, 500, val)
+
+		val, ok = c.Get("bbb")
+		require.True(t, ok)
+		require.Equal(t, 600, val)
+	})
+
 	t.Run("purge logic", func(t *testing.T) {
-		// Write me
+		c := NewCache(3)
+
+		// ccc, bbb, aaa
+		c.Set("aaa", 300)
+		c.Set("bbb", 300)
+		c.Set("ccc", 300)
+
+		_, ok := c.Get("aaa")
+		require.True(t, ok)
+
+		_, ok = c.Get("bbb")
+		require.True(t, ok)
+
+		_, ok = c.Get("ccc")
+		require.True(t, ok)
+
+		// ddd, ccc, bbb - kicking out aaa
+		c.Set("ddd", 300)
+
+		_, ok = c.Get("aaa")
+		require.False(t, ok)
+
+		// eee, ddd, ccc - kicking out bbb
+		c.Set("eee", 300)
+
+		_, ok = c.Get("bbb")
+		require.False(t, ok)
+
+		// ccc, eee, ddd - move ccc to front by setting a new value
+		c.Set("ccc", 300)
+
+		// fff, ccc, eee - kicking out ddd
+		c.Set("fff", 300)
+
+		_, ok = c.Get("ddd")
+		require.False(t, ok)
+
+		// eee, fff, ccc - move eee to front by getting its value
+		_, _ = c.Get("eee")
+
+		// ggg, eee, fff - kicking out ccc
+		c.Set("ggg", 300)
+
+		_, ok = c.Get("ccc")
+		require.False(t, ok)
 	})
 }
 
 func TestCacheMultithreading(t *testing.T) {
-	t.Skip() // Remove me if task with asterisk completed.
-
 	c := NewCache(10)
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
