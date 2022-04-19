@@ -6,24 +6,21 @@ import (
 )
 
 var (
-	ErrWrongWorkersNumber  = errors.New("wrong routines number")
+	ErrWrongWorkersNumber  = errors.New("wrong workers number")
 	ErrErrorsLimitExceeded = errors.New("errors limit exceeded")
 )
 
 type Task func() error
 
 // Run starts tasks in n goroutines and stops its work when receiving m errors from tasks.
-func Run(tasks []Task, n, m int) error {
-	var result error
-
+func Run(tasks []Task, n, m int) (result error) {
 	if n < 1 {
 		return ErrWrongWorkersNumber
 	}
 	if m < 1 {
-		return ErrErrorsLimitExceeded
+		m = 1
 	}
 
-	taskCount := 0
 	errCount := 0
 
 	wg := &sync.WaitGroup{}
@@ -31,29 +28,19 @@ func Run(tasks []Task, n, m int) error {
 
 	taskCh := make(chan Task)
 	errCh := make(chan struct{}, m)
-	stopCh := make(chan struct{}, n)
 
 	for i := 0; i < n; i++ {
-		go func(wg *sync.WaitGroup, taskCh <-chan Task, errCh chan<- struct{}, stopCh <-chan struct{}) {
-			for {
-				select {
-				case <-stopCh:
-					wg.Done()
-					return
-				case task := <-taskCh:
-					if err := task(); err != nil {
-						errCh <- struct{}{}
-					}
+		go func(wg *sync.WaitGroup, taskCh <-chan Task, errCh chan<- struct{}) {
+			for task := range taskCh {
+				if err := task(); err != nil {
+					errCh <- struct{}{}
 				}
 			}
-		}(wg, taskCh, errCh, stopCh)
+			wg.Done()
+		}(wg, taskCh, errCh)
 	}
 
-	for {
-		if taskCount == len(tasks) {
-			break
-		}
-
+	for _, task := range tasks {
 		select {
 		case <-errCh:
 			errCount++
@@ -65,14 +52,10 @@ func Run(tasks []Task, n, m int) error {
 			break
 		}
 
-		taskCh <- tasks[taskCount]
-		taskCount++
+		taskCh <- task
 	}
 
-	for i := 0; i < n; i++ {
-		stopCh <- struct{}{}
-	}
-
+	close(taskCh)
 	wg.Wait()
 
 	return result
