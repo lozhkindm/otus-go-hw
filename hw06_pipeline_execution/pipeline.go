@@ -8,17 +8,8 @@ type (
 
 type Stage func(in In) (out Out)
 
-func ExecutePipeline(in In, done In, stages ...Stage) Out {
-	if len(stages) == 0 {
-		return in
-	}
-
-	out := make(chan interface{})
-
-	for _, stage := range stages {
-		in = stage(in)
-	}
-
+func stop(in In, done In) Out {
+	out := make(Bi)
 	go func() {
 		defer close(out)
 		for {
@@ -27,12 +18,28 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 				if !ok {
 					return
 				}
-				out <- v
+				select {
+				case out <- v:
+				case <-done:
+					return
+				}
 			case <-done:
 				return
 			}
 		}
 	}()
-
 	return out
+}
+
+func ExecutePipeline(in In, done In, stages ...Stage) Out {
+	if len(stages) == 0 {
+		return in
+	}
+	for _, stage := range stages {
+		if done != nil {
+			in = stop(in, done)
+		}
+		in = stage(in)
+	}
+	return in
 }
