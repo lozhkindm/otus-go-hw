@@ -1,4 +1,6 @@
 APP_BIN := "./bin/calendar"
+SCHEDULER_BIN := "./bin/scheduler"
+SENDER_BIN := "./bin/sender"
 MIGRATIONS_BIN := "./bin/goose"
 DOCKER_IMG="calendar:develop"
 
@@ -7,9 +9,17 @@ LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%d
 
 build:
 	go build -v -o $(APP_BIN) -ldflags "$(LDFLAGS)" ./cmd/calendar
+	go build -v -o $(SCHEDULER_BIN) -ldflags "$(LDFLAGS)" ./cmd/scheduler
+	go build -v -o $(SENDER_BIN) -ldflags "$(LDFLAGS)" ./cmd/sender
 
 run: build
 	$(APP_BIN) -config ./configs/.env
+
+run-scheduler: build
+	$(SCHEDULER_BIN) -config ./configs/.env.scheduler
+
+run-sender: build
+	$(SENDER_BIN) -config ./configs/.env.sender
 
 build-img:
 	docker build \

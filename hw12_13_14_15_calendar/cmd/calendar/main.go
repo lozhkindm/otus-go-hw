@@ -14,7 +14,6 @@ import (
 	"github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/logger"
 	internalgrpc "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/server/grpc"
 	internalhttp "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/server/http"
-	sqlstorage "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/storage/sql" //nolint:typecheck
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -33,7 +32,8 @@ func main() {
 		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
 
 	// loading .env
 	if err := godotenv.Load(configFile); err != nil {
@@ -53,13 +53,11 @@ func main() {
 	}
 
 	// creating storage
-	storage, err := NewStorage(ctx, config)
+	storage, closeFunc, err := NewStorage(ctx, config)
 	if err != nil {
 		logg.Fatal("failed to create a storage: " + err.Error())
 	}
-	if s, ok := storage.(sqlstorage.Storage); ok {
-		defer s.Close(ctx)
-	}
+	defer closeFunc(ctx)
 
 	// creating application
 	calendar := app.New(logg, storage)
@@ -101,9 +99,6 @@ func main() {
 		storage,
 		logg,
 	)
-
-	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	defer cancel()
 
 	go func() {
 		<-ctx.Done()

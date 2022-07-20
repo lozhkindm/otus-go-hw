@@ -88,8 +88,37 @@ func (s Storage) DeleteEvent(ctx context.Context, eventID int) error {
 	return nil
 }
 
+func (s Storage) DeleteOldEvents(ctx context.Context) error {
+	query := `delete from events where end_at < NOW() - interval '1 year'`
+	if _, err := s.db.ExecContext(ctx, query); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s Storage) ListEvent(ctx context.Context) ([]storage.Event, error) {
 	query := `select id, user_id, title, description, start_at, end_at, notify_at from events;`
+	rows, err := s.db.QueryxContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	events := make([]storage.Event, 0)
+	for rows.Next() {
+		var event storage.Event
+		if err := rows.StructScan(&event); err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+func (s Storage) GetEventsToNotify(ctx context.Context) ([]storage.Event, error) {
+	query := `
+select id, user_id, title, description, start_at, end_at, notify_at from events
+where notify_at is null and start_at > NOW();`
 	rows, err := s.db.QueryxContext(ctx, query)
 	if err != nil {
 		return nil, err

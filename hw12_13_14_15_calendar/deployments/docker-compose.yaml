@@ -12,6 +12,13 @@ services:
     ports:
       - "25432:5432"
 
+  rabbit:
+    restart: always
+    image: rabbitmq:3.10.6-management
+    ports:
+      - '15672:15672'
+      - '5672:5672'
+
 networks:
   otus-network:
     driver: bridge
