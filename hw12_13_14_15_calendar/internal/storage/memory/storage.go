@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/storage"
 )
@@ -59,6 +60,18 @@ func (s *Storage) DeleteEvent(_ context.Context, eventID int) error {
 	return nil
 }
 
+func (s *Storage) DeleteOldEvents(_ context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, event := range s.events {
+		if event.EndAt.Before(time.Now().Add(-24 * time.Hour * 365)) {
+			delete(s.events, i)
+		}
+	}
+	return nil
+}
+
 func (s *Storage) ListEvent(_ context.Context) ([]storage.Event, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -66,6 +79,22 @@ func (s *Storage) ListEvent(_ context.Context) ([]storage.Event, error) {
 	events := make([]storage.Event, 0, len(s.events))
 	for _, event := range s.events {
 		events = append(events, event)
+	}
+	sort.SliceStable(events, func(i, j int) bool {
+		return events[i].ID < events[j].ID
+	})
+	return events, nil
+}
+
+func (s *Storage) GetEventsToNotify(_ context.Context) ([]storage.Event, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	events := make([]storage.Event, 0, len(s.events))
+	for _, event := range s.events {
+		if event.NotifyAt == nil && event.StartAt.After(time.Now()) {
+			events = append(events, event)
+		}
 	}
 	sort.SliceStable(events, func(i, j int) bool {
 		return events[i].ID < events[j].ID

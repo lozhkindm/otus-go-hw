@@ -2,3 +2,5 @@ logs/
 bin/
 docker/
 configs/.env
+configs/.env.scheduler
+configs/.env.sender
