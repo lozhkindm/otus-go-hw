@@ -1,0 +1,93 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:13.6-alpine
+    environment:
+      POSTGRES_DB: calendar
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "35432:5432"
+    networks:
+      - test-network
+
+  rabbit:
+    image: rabbitmq:3.10.6-management
+    ports:
+      - "15672:5672"
+    networks:
+      - test-network
+
+  calendar:
+    build:
+      context: ../
+      dockerfile: build/calendar.dockerfile
+    volumes:
+      - ./../configs/.env.testing:/etc/calendar/.env
+    ports:
+      - "8091:8091"
+      - "50052:50052"
+    depends_on:
+      - postgres
+      - rabbit
+      - migrations
+    networks:
+      - test-network
+
+  scheduler:
+    build:
+      context: ../
+      dockerfile: build/scheduler.dockerfile
+    volumes:
+      - ./../configs/.env.scheduler.testing:/etc/calendar/.env.scheduler
+    depends_on:
+      - postgres
+      - rabbit
+      - migrations
+    networks:
+      - test-network
+
+  sender:
+    build:
+      context: ../
+      dockerfile: build/sender.dockerfile
+    volumes:
+      - ./../configs/.env.sender.testing:/etc/calendar/.env.sender
+    depends_on:
+      - postgres
+      - rabbit
+      - migrations
+    networks:
+      - test-network
+
+  tests:
+    build: ../tests
+    environment:
+      POSTGRES_DSN: postgresql://user:secret@host.docker.internal:35432/calendar
+      RABBITMQ_DSN: amqp://guest:guest@host.docker.internal:15672/
+      HTTP_HOST: http://host.docker.internal:8091
+    depends_on:
+      - postgres
+      - rabbit
+      - calendar
+      - scheduler
+      - sender
+      - migrations
+    networks:
+      - test-network
+
+  migrations:
+    build:
+      context: ../
+      dockerfile: build/goose.dockerfile
+      args:
+        - CONFIG_FILE_NAME=.env.testing
+    depends_on:
+      - postgres
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
