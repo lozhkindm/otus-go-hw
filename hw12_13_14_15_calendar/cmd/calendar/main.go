@@ -3,15 +3,17 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/app"
+	httphandlers "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/handlers"
 	"github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/logger"
+	internalgrpc "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/server/grpc"
 	internalhttp "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/server/http"
-	sqlstorage "github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/storage/sql" //nolint:typecheck
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -30,36 +32,35 @@ func main() {
 		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
 
 	// loading .env
 	if err := godotenv.Load(configFile); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// populating config
 	config := NewConfig()
 	if err := envconfig.Process("", &config); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// creating logger
 	logg, err := logger.New(config.Logger.Level, config.Logger.Development)
 	if err != nil {
-		panic(err)
+		logg.Fatal(err.Error())
 	}
 
 	// creating storage
-	storage, err := NewStorage(ctx, config)
+	storage, closeFunc, err := NewStorage(ctx, config)
 	if err != nil {
 		logg.Fatal("failed to create a storage: " + err.Error())
 	}
-	if s, ok := storage.(sqlstorage.Storage); ok {
-		defer s.Close(ctx)
-	}
+	defer closeFunc(ctx)
 
 	// creating application
-	calendar := app.New(config.App.Name, logg, storage)
+	calendar := app.New(logg, storage)
 
 	// creating requests log file
 	if err := os.Mkdir("./logs", 0755); err != nil && err == os.ErrExist {
@@ -71,14 +72,17 @@ func main() {
 	}
 	defer logfile.Close()
 
+	// creating handlers
+	handlers := httphandlers.NewHandlers(calendar, logg)
+
 	// creating router
-	router, err := NewRouter(logfile, calendar, config)
+	router, err := NewRouter(logfile, handlers, config)
 	if err != nil {
 		logg.Fatal("failed to create a router: " + err.Error())
 	}
 
-	// creating server
-	server := internalhttp.NewServer(
+	// creating http server
+	httpServer := internalhttp.NewServer(
 		config.Server.Host,
 		config.Server.Port,
 		config.Server.ReadTimeout,
@@ -88,8 +92,13 @@ func main() {
 		router,
 	)
 
-	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	defer cancel()
+	// creating grpc server
+	grpcServer := internalgrpc.NewServer(
+		config.GRPC.Host,
+		config.GRPC.Port,
+		storage,
+		logg,
+	)
 
 	go func() {
 		<-ctx.Done()
@@ -97,14 +106,25 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 
-		if err := server.Stop(ctx); err != nil {
+		if err := httpServer.Stop(ctx); err != nil {
 			logg.Fatal("failed to stop http server: " + err.Error())
+		}
+		if err := grpcServer.Stop(ctx); err != nil {
+			logg.Fatal("failed to stop grpc server: " + err.Error())
 		}
 	}()
 
 	logg.Info(config.App.Name + " is running...")
 
-	if err := server.Start(ctx); err != nil {
+	go func() {
+		if err := grpcServer.Start(ctx); err != nil {
+			logg.Error("failed to start grpc server: " + err.Error())
+			cancel()
+			os.Exit(1) //nolint:gocritic
+		}
+	}()
+
+	if err := httpServer.Start(ctx); err != nil {
 		logg.Error("failed to start http server: " + err.Error())
 		cancel()
 		os.Exit(1) //nolint:gocritic
