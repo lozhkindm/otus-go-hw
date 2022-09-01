@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/lozhkindm/otus-go-hw/hw12_13_14_15_calendar/internal/storage"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type App struct {
@@ -24,12 +26,21 @@ type Storage interface {
 	CreateEvent(ctx context.Context, event storage.Event) (int, error)
 	UpdateEvent(ctx context.Context, event storage.Event) error
 	DeleteEvent(ctx context.Context, eventID int) error
+	DeleteOldEvents(ctx context.Context) error
 	ListEvent(ctx context.Context) ([]storage.Event, error)
+	GetEventsToNotify(ctx context.Context) ([]storage.Event, error)
 	GetEvent(ctx context.Context, eventID int) (*storage.Event, error)
 }
 
 type Router interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
+}
+
+type Queue interface {
+	DeclareQueue(ctx context.Context, name string) error
+	Consume(ctx context.Context, queueName, consumerName string) (<-chan amqp.Delivery, error)
+	Close(ctx context.Context) error
+	SendEventNotification(ctx context.Context, queue string, event storage.Event) error
 }
 
 func New(logger Logger, storage Storage) *App {
