@@ -2,6 +2,7 @@ version: '3'
 
 services:
   postgres:
+    restart: always
     image: postgres:13.6-alpine
     environment:
       POSTGRES_DB: calendar
@@ -11,13 +12,74 @@ services:
       - ../docker/pgdata:/var/lib/postgresql/data:rw
     ports:
       - "25432:5432"
+    networks:
+      - otus-network
 
   rabbit:
     restart: always
     image: rabbitmq:3.10.6-management
     ports:
-      - '15672:15672'
-      - '5672:5672'
+      - "15672:15672"
+      - "5672:5672"
+    networks:
+      - otus-network
+
+  migrations:
+    build:
+      context: ../
+      dockerfile: build/goose.dockerfile
+      args:
+        - CONFIG_FILE_NAME=.env
+    depends_on:
+      - postgres
+    networks:
+      - otus-network
+
+  calendar:
+    restart: on-failure
+    build:
+      context: ../
+      dockerfile: build/calendar.dockerfile
+    volumes:
+      - ./../logs/requests.txt:/logs/requests.txt
+      - ./../configs/.env:/etc/calendar/.env
+    ports:
+      - "8090:8090"
+      - "50051:50051"
+    depends_on:
+      - postgres
+      - rabbit
+      - migrations
+    networks:
+      - otus-network
+
+  scheduler:
+    restart: on-failure
+    build:
+      context: ../
+      dockerfile: build/scheduler.dockerfile
+    volumes:
+      - ./../configs/.env.scheduler:/etc/calendar/.env.scheduler
+    depends_on:
+      - postgres
+      - rabbit
+      - migrations
+    networks:
+      - otus-network
+
+  sender:
+    restart: on-failure
+    build:
+      context: ../
+      dockerfile: build/sender.dockerfile
+    volumes:
+      - ./../configs/.env.sender:/etc/calendar/.env.sender
+    depends_on:
+      - postgres
+      - rabbit
+      - migrations
+    networks:
+      - otus-network
 
 networks:
   otus-network:

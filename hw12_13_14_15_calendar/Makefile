@@ -7,6 +7,20 @@ DOCKER_IMG="calendar:develop"
 GIT_HASH := $(shell git log --format="%h" -n 1)
 LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%S) -X main.gitHash=$(GIT_HASH)
 
+up:
+	docker-compose -f deployments/docker-compose.yaml up -d
+
+down:
+	docker-compose -f deployments/docker-compose.yaml down
+
+integration-tests:
+	set -e; \
+	docker-compose -f deployments/docker-compose.test.yaml up --build -d; \
+	status_code=0; \
+	docker-compose -f deployments/docker-compose.test.yaml run tests go test -v || status_code=$$?; \
+	docker-compose -f deployments/docker-compose.test.yaml down; \
+	exit $$status_code
+
 build:
 	go build -v -o $(APP_BIN) -ldflags "$(LDFLAGS)" ./cmd/calendar
 	go build -v -o $(SCHEDULER_BIN) -ldflags "$(LDFLAGS)" ./cmd/scheduler
